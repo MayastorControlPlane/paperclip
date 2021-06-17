@@ -79,6 +79,37 @@ pub fn emit_v2_schema_struct(input: TokenStream) -> TokenStream {
                     self.extra_props.as_mut().and_then(|s| s.right_mut()).map(|s| s.retain_ref());
                 }
             }
+
+            pub fn example(&self) -> Option<serde_json::Value> {
+                match self.example.as_ref() {
+                    Some(example) => Some(example.clone()),
+                    None => {
+                        if !self.enum_.is_empty() {
+                            None
+                        }
+                        else if let Some(items) = self.items.as_ref() {
+                            if let Some(example) = items.example().as_ref() {
+                                Some(serde_json::to_value(&[example]).unwrap())
+                            } else {
+                                None
+                            }
+                        }
+                        else {
+                            match self.data_type.as_ref() {
+                                Some(&paperclip::v2::models::DataType::String) => {
+                                    match self.format.as_ref() {
+                                        Some(&paperclip::v2::models::DataTypeFormat::Uuid) => {
+                                            Some(serde_json::to_value("514ed1c8-7174-49ac-b9cd-ad44ef670a67").unwrap())
+                                        }
+                                        _ => Some(serde_json::to_value("").unwrap())
+                                    }
+                                }
+                                _ => None
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         impl #impl_generics paperclip::v2::Schema for #name #ty_generics #where_clause {
@@ -286,7 +317,7 @@ fn schema_fields(name: &Ident, is_ref: bool) -> proc_macro2::TokenStream {
     ));
     gen.extend(quote!(
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub example: Option<String>,
+        pub example: Option<serde_json::Value>,
     ));
 
     gen.extend(quote!(

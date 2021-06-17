@@ -700,7 +700,7 @@ pub fn emit_v2_definition(input: TokenStream) -> TokenStream {
                     handle_field_struct(f, &item_ast.attrs, &props, &mut props_gen)
                 }
                 Fields::Unnamed(ref f) => {
-                    handle_unnamed_field_struct(f, &item_ast.attrs, &mut props_gen)
+                    handle_unnamed_field_struct(f, &item_ast, &mut props_gen)
                 }
                 Fields::Unit => {
                     emit_warning!(
@@ -995,9 +995,11 @@ fn get_field_type(field: &Field) -> Option<proc_macro2::TokenStream> {
 /// Generates code for a tuple struct with fields.
 fn handle_unnamed_field_struct(
     fields: &FieldsUnnamed,
-    struct_attr: &[Attribute],
+    item_ast: &DeriveInput,
     props_gen: &mut proc_macro2::TokenStream,
 ) {
+    let struct_attr = &item_ast.attrs;
+    let name = &item_ast.ident;
     if fields.unnamed.len() == 1 {
         let field = fields.unnamed.iter().next().unwrap();
 
@@ -1020,6 +1022,7 @@ fn handle_unnamed_field_struct(
                         s.description = Some(#docs.to_string());
                     }
                     schema = s;
+                    schema.example = Some(serde_json::to_value(&#name::default()).unwrap());
                 }));
             }
         }
@@ -1123,6 +1126,9 @@ fn handle_field_struct(
     let docs = extract_documentation(struct_attr);
     let docs = docs.trim();
 
+    props_gen.extend(quote!(
+        let mut example_map = std::collections::BTreeMap::<String, serde_json::Value>::new();
+    ));
     props_gen.extend(quote!({
         if !#docs.is_empty() {
             schema.description = Some(#docs.to_string());
@@ -1156,6 +1162,23 @@ fn handle_field_struct(
                 if !#docs.is_empty() {
                     s.description = Some(#docs.to_string());
                 }
+
+                // A very Fake auto generated example
+                // todo: support explicitly added examples via the schema macros
+                if !#ty_ref::REQUIRED {
+                    // Set optional fields to null
+                    Some(serde_json::to_value(&()).unwrap())
+                } else {
+                    // First check our baked example which collects examples from the inner
+                    // examples set via the Schema
+                    s.example()
+                    // Otherwise, fake the example using the Default trait
+                    .or(Some(serde_json::to_value(&#ty_ref::default()).unwrap()))
+                }.map(|example| {
+                    // Don't bother adding nulls
+                    example_map.insert(#field_name.into(), example);
+                });
+
                 schema.properties.insert(#field_name.into(), s.into());
             })
         } else {
@@ -1173,6 +1196,9 @@ fn handle_field_struct(
 
         props_gen.extend(gen);
     }
+    props_gen.extend(quote!(
+        schema.example = Some(serde_json::to_value(&example_map).unwrap());
+    ));
 }
 
 /// Generates code for an enum (if supported).
