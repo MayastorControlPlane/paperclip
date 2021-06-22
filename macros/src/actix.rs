@@ -1211,16 +1211,16 @@ fn handle_enum(e: &DataEnum, serde: &SerdeProps, props_gen: &mut proc_macro2::To
         let mut name = var.ident.to_string();
         match &var.fields {
             Fields::Unit => (),
-            Fields::Named(ref f) => {
-                emit_warning!(
-                    f.span().unwrap(),
-                    "skipping enum variant with named fields in schema."
-                );
-                continue;
+            Fields::Named(ref _f) => {
+                // emit_warning!(
+                //     f.span().unwrap(),
+                //     "skipping enum variant with named fields in schema."
+                // );
+                // continue;
             }
-            Fields::Unnamed(ref f) => {
-                emit_warning!(f.span().unwrap(), "skipping tuple enum variant in schema.");
-                continue;
+            Fields::Unnamed(ref _f) => {
+                // emit_warning!(f.span().unwrap(), "skipping tuple enum variant in schema.");
+                // continue;
             }
         }
 
